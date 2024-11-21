@@ -1,0 +1,24 @@
+{
+  "name": "ilovemystreamer",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.1",
+    "jsdom": "^25.0.1",
+    "node-fetch": "^3.3.2"
+  },
+  "bin": "app.js",
+  "pkg": {
+    "scripts": "build/**/*.js",
+    "assets": [
+      "core/**/*",
+      "data/**/*",
+      "views/**/*"
+    ],
+    "targets": [
+      "node18-win-x64"
+    ],
+    "outputPath": "dist"
+  }
+}
