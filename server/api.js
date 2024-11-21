@@ -25,17 +25,24 @@ router.get('/filter', async (req, res) => {
 
 router.get('/refreshdata', async (req, res) => {
     try {
-        await refreshServers();
+        const result = await refreshServers();
 
-        return res.status(200).json({
-            error: false,
-            message: 'Servers succesfully refreshed from battlemetrics and rustmaps.'
-        });
+        if (result.success) {
+            return res.status(200).json({
+                error: false,
+                message: result.message,
+            });
+        } else {
+            return res.status(429).json({
+                error: true,
+                message: result.message,
+            });
+        }
     } catch (error) {
-        return res.status(400).json({
+        return res.status(500).json({
             error: true,
             message: 'Error refreshing data.',
-            details: error.message
+            details: error.message,
         });
     }
 });

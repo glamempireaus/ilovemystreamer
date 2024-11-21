@@ -2,15 +2,15 @@ export type FilterType = 'cluster' | 'absolute' | 'relational';
 
 export interface FilterConfig {
   type: FilterType;
-  monuments: string[];
+  monuments: string[] | [string[], string[]];
   direction: string;
   radius?: number;
 }
 
 export interface Monument {
   name: string;
-  x: number;
-  y: number;
+  xCoord: number;
+  yCoord: number;
   biomeList: string[];
 }
 

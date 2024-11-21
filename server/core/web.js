@@ -1,10 +1,14 @@
 import fetch from 'node-fetch';
+import path from 'path';
 import { promises as fs } from 'fs';
 import { JSDOM } from 'jsdom';
-import { Server, Player, Streamer, Map, Monument, getMonumentFromAlias } from './objects.js';
+import { Server, Map, Monument, getMonumentFromAlias } from './objects.js';
 
-const BATTLEMETRICS_SERVER_API_URL = 'https://api.battlemetrics.com/servers';
-// const BATTLEMETRICS_PLAYER_API_URL = 'https://api.battlemetrics.com/players';
+export const BATTLEMETRICS_SERVER_API_URL = 'https://api.battlemetrics.com/servers';
+export const BATTLEMETRICS_PLAYER_API_URL = 'https://api.battlemetrics.com/players';
+
+export const REFRESH_INTERVAL_HOURS = 3;
+export const LAST_REFRESH_FILE = path.join(process.cwd(), 'data/lastrefresh.json');
 
 export async function fetchServersFromBattlemetricsAndRustMaps() {
 
@@ -179,4 +183,20 @@ export function removeNullFields(obj) {
         );
     }
     return obj;
+}
+
+export async function getLastRefreshTime() {
+    try {
+        const data = await fs.readFile(LAST_REFRESH_FILE, 'utf-8');
+        const parsed = JSON.parse(data);
+        return parsed.lastRefresh || null;
+    } catch (error) {
+        return null;
+    }
+}
+
+export async function setLastRefreshTime() {
+    const now = Date.now();
+    const data = { lastRefresh: now };
+    await fs.writeFile(LAST_REFRESH_FILE, JSON.stringify(data, null, 2), 'utf-8');
 }

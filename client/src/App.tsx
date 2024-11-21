@@ -1,32 +1,18 @@
 import React, { useState } from 'react';
-import { useQuery } from 'react-query';
+import { useQuery, useQueryClient } from 'react-query';
 import { Heart, Moon, Sun } from 'lucide-react';
-import FilterBuilder from './components/FilterBuilder';
-import ServerList from './components/ServerList';
-import { Server } from './types';
-
-async function fetchServers(filterText: string): Promise<Server[]> {
-  if (!filterText) return [];
-  
-  const response = await fetch(`https://4327-117-20-68-163.ngrok-free.app/api/filter?filter=${encodeURIComponent(filterText)}`, {
-    headers: {
-      'ngrok-skip-browser-warning': '69420'
-    }
-  });
-  
-  if (!response.ok) throw new Error('Failed to fetch servers: ' + await response.text());
-  const data = await response.json();
-  
-  if (data.error) {
-    throw new Error(data.message || 'Failed to fetch servers');
-  }
-  
-  return data.data;
-}
+import FilterBuilder from './components/filter/FilterBuilder';
+import ServerList from './components/server/ServerList';
+import Footer from './components/Footer';
+import Toast from './components/Toast';
+import { useToast } from './hooks/useToast';
+import { fetchServers, refreshData } from './services/api';
 
 export default function App() {
   const [filterText, setFilterText] = useState('');
   const [isDark, setIsDark] = useState(true);
+  const queryClient = useQueryClient();
+  const { toasts, addToast, removeToast } = useToast();
 
   const { data: servers, isLoading, error } = useQuery(
     ['servers', filterText],
@@ -34,11 +20,27 @@ export default function App() {
     { enabled: !!filterText }
   );
 
+  const handleRefresh = async () => {
+    try {
+      const result = await refreshData();
+      addToast(result.message, result.success ? 'success' : 'error');
+      
+      if (result.success && filterText) {
+        await queryClient.invalidateQueries(['servers', filterText]);
+      }
+    } catch (error) {
+      addToast(
+        error instanceof Error ? error.message : 'Failed to refresh servers',
+        'error'
+      );
+    }
+  };
+
   return (
-    <div className={`min-h-screen transition-colors duration-200 ${
+    <div className={`min-h-screen flex flex-col transition-colors duration-200 ${
       isDark ? 'bg-gray-900' : 'bg-gray-100'
     }`}>
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-8 flex-grow">
         <div className="mb-8">
           <div className="flex justify-between items-center mb-6">
             <h1 className={`text-3xl font-bold flex items-center gap-2 ${
@@ -57,7 +59,11 @@ export default function App() {
               {isDark ? <Sun size={20} /> : <Moon size={20} />}
             </button>
           </div>
-          <FilterBuilder onApplyFilter={setFilterText} isDark={isDark} />
+          <FilterBuilder 
+            onApplyFilter={setFilterText} 
+            isDark={isDark} 
+            onRefresh={handleRefresh}
+          />
         </div>
 
         {filterText && (
@@ -77,6 +83,17 @@ export default function App() {
           </div>
         )}
       </div>
+      <Footer isDark={isDark} />
+      
+      {toasts.map(toast => (
+        <Toast
+          key={toast.id}
+          message={toast.message}
+          type={toast.type}
+          onClose={() => removeToast(toast.id)}
+          isDark={isDark}
+        />
+      ))}
     </div>
   );
 }

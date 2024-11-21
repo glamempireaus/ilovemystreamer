@@ -1,10 +1,11 @@
 import React from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
+import { FilterType } from '../../types';
 
 interface DraggableFunctionProps {
   id: string;
-  type: 'cluster' | 'absolute' | 'relational';
+  type: FilterType;
   isDark?: boolean;
 }
 

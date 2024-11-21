@@ -1,10 +1,40 @@
-import { fetchServersFromBattlemetricsAndRustMaps as fetchServersFromBattlemetricsAndRustMaps } from './web.js';
+import { fetchServersFromBattlemetricsAndRustMaps as fetchServersFromBattlemetricsAndRustMaps, getLastRefreshTime, setLastRefreshTime, REFRESH_INTERVAL_HOURS } from './web.js';
 import { loadServers } from './objects.js';
 import { applyAbsolute, applyCluster, applyDirectionalRelationship, parseFilterString } from './filtering.js';
-import { promises as fs } from 'fs';
 
 export async function refreshServers() {
-    await fetchServersFromBattlemetricsAndRustMaps();
+
+    try {
+        const lastRefresh = await getLastRefreshTime();
+        const now = Date.now();
+
+        if (lastRefresh) {
+            const hoursSinceLastRefresh = (now - lastRefresh) / (1000 * 60 * 60);
+            if (hoursSinceLastRefresh < REFRESH_INTERVAL_HOURS) {
+                const remainingTime = REFRESH_INTERVAL_HOURS - hoursSinceLastRefresh;
+                return {
+                    success: false,
+                    message: `Refresh allowed only once every ${REFRESH_INTERVAL_HOURS} hours. Try again in ${remainingTime.toFixed(
+                        2
+                    )} hours.`,
+                };
+            }
+        }
+
+        await setLastRefreshTime();
+        await fetchServersFromBattlemetricsAndRustMaps();
+
+        return {
+            success: true,
+            message: 'Servers refreshed successfully.',
+        };
+    } catch (error) {
+        console.error('Error in refreshServers:', error);
+        return {
+            success: false,
+            message: 'An error occurred while refreshing servers.',
+        };
+    }
 }
 
 export async function getFilteredServers(filter) {

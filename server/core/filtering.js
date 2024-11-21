@@ -47,6 +47,10 @@ export function parseFilterString(filterString) {
 
 export function applyCluster(servers, params) {
     return servers.filter(server => {
+        if (server.map.url == 'https://rustmaps.com/map/4500_672626517') {
+            let test = 3;
+            test = test + 1;
+        }
 
         const monuments = [];
         let radius = 1000;
@@ -58,8 +62,7 @@ export function applyCluster(servers, params) {
             } else if (['north', 'south', 'east', 'west'].includes(element.toLowerCase())) {
                 direction = element.toLowerCase();
             } else {
-                const monument = getMonumentFromAlias(element)
-
+                const monument = getMonumentFromAlias(element);
                 monuments.push(monument);
             }
         });
@@ -68,35 +71,82 @@ export function applyCluster(servers, params) {
             return false;
         }
 
-        const monumentCoordinates = server.map.monumentList
+        if (!server.map || !Array.isArray(server.map.monumentList)) {
+            return false;
+        }
+
+        // Filter only the monuments we care about
+        const relevantMonuments = server.map.monumentList
             .filter(monument => monuments.includes(monument.name))
-            .map(monument => ({ x: monument.x, y: monument.y }));
+            .map(monument => ({ name: monument.name, x: monument.x, y: monument.y }));
 
-        if (monumentCoordinates.length === 0 || monumentCoordinates.length !== monuments.length) {
+        if (relevantMonuments.length === 0) {
             return false;
         }
 
-        const monumentCentroid = calculateCentroid(monumentCoordinates);
+        // Generate all possible clusters
+        const possibleClusters = generateClusters(relevantMonuments, monuments);
 
-        if (direction === 'north' && monumentCentroid.y < 0) {
-            return false;
-        } else if (direction === 'south' && monumentCentroid.y > 0) {
-            return false;
-        } else if (direction === 'east' && monumentCentroid.x < 0) {
-            return false;
-        } else if (direction === 'west' && monumentCentroid.x > 0) {
-            return false;
-        }
+        // Check each cluster
+        const hasValidCluster = possibleClusters.some(cluster => {
+            const centroid = calculateCentroid(cluster);
 
-        return monumentCoordinates.every(coord => {
-            const distance = Math.sqrt(
-                Math.pow(coord.x - monumentCentroid.x, 2) +
-                Math.pow(coord.y - monumentCentroid.y, 2)
-            );
-            return distance <= radius;
+            // Validate that all monuments in the cluster are within the radius of the centroid
+            return cluster.every(coord => {
+                const distanceFromCentroid = Math.sqrt(
+                    Math.pow(coord.x - centroid.x, 2) + Math.pow(coord.y - centroid.y, 2)
+                );
+                return distanceFromCentroid <= radius;
+            });
         });
+
+        if (!hasValidCluster) {
+            return false;
+        }
+
+        if (direction) {
+            const monumentCentroid = calculateCentroid(relevantMonuments);
+            if (direction === 'north' && monumentCentroid.y < 0) {
+                return false;
+            } else if (direction === 'south' && monumentCentroid.y > 0) {
+                return false;
+            } else if (direction === 'east' && monumentCentroid.x < 0) {
+                return false;
+            } else if (direction === 'west' && monumentCentroid.x > 0) {
+                return false;
+            }
+        }
+
+        return true;
     });
 }
+
+// Helper function to generate all possible clusters
+function generateClusters(relevantMonuments, requiredMonuments) {
+    const clusters = [];
+
+    // Group monuments by name
+    const groupedByType = requiredMonuments.map(name =>
+        relevantMonuments.filter(monument => monument.name === name)
+    );
+
+    // Generate all combinations of clusters
+    const generateCombinations = (grouped, currentCluster = [], depth = 0) => {
+        if (depth === grouped.length) {
+            clusters.push(currentCluster);
+            return;
+        }
+
+        grouped[depth].forEach(monument => {
+            generateCombinations(grouped, [...currentCluster, monument], depth + 1);
+        });
+    };
+
+    generateCombinations(groupedByType);
+
+    return clusters;
+}
+
 
 export function applyAbsolute(servers, params) {
     return servers.filter(server => {
@@ -137,7 +187,18 @@ export function applyAbsolute(servers, params) {
 
 export function applyDirectionalRelationship(servers, params) {
     return servers.filter(server => {
-        const directionIndex = params.findIndex(element =>
+        // Extract radius if it exists
+        let radius = null;
+        const filteredParams = params.filter(element => {
+            if (/^\d+$/.test(element)) {
+                radius = parseInt(element, 10); // Extract radius
+                return false; // Exclude radius from filtered params
+            }
+            return true;
+        });
+
+        // Find index of the direction keyword
+        const directionIndex = filteredParams.findIndex(element =>
             ['north', 'south', 'east', 'west'].includes(element.toLowerCase())
         );
 
@@ -145,12 +206,12 @@ export function applyDirectionalRelationship(servers, params) {
             return false; // No valid direction found
         }
 
-        const direction = params[directionIndex].toLowerCase();
-        const beforeDirection = params.slice(0, directionIndex);
-        const afterDirection = params.slice(directionIndex + 1);
+        const direction = filteredParams[directionIndex].toLowerCase();
+        const beforeDirection = filteredParams.slice(0, directionIndex);
+        const afterDirection = filteredParams.slice(directionIndex + 1);
 
         if (beforeDirection.length === 0 || afterDirection.length === 0) {
-            return false;
+            return false; // Ensure there are monuments both before and after the direction
         }
 
         const getMonument = name => server.map.monumentList.find(m => m.name === getMonumentFromAlias(name));
@@ -162,7 +223,16 @@ export function applyDirectionalRelationship(servers, params) {
             return false; // One or more monuments not found
         }
 
-        return beforeMonuments.every(before =>
+        // Combine all monuments (before + after)
+        const allMonuments = [...beforeMonuments, ...afterMonuments];
+
+        // Calculate the centroid for all monuments
+        const centroid = calculateCentroid(
+            allMonuments.map(monument => ({ x: monument.x, y: monument.y }))
+        );
+
+        // Check directional relationship
+        const directionalCheck = beforeMonuments.every(before =>
             afterMonuments.every(after => {
                 if (direction === 'north') {
                     return before.y > after.y;
@@ -176,8 +246,28 @@ export function applyDirectionalRelationship(servers, params) {
                 return true;
             })
         );
+
+        if (!directionalCheck) {
+            return false;
+        }
+
+        // If radius is specified, check all monuments are within the radius of the centroid
+        if (radius !== null) {
+            const withinRadius = allMonuments.every(monument => {
+                const distance = Math.sqrt(
+                    Math.pow(monument.x - centroid.x, 2) +
+                    Math.pow(monument.y - centroid.y, 2)
+                );
+                return distance <= radius;
+            });
+
+            return withinRadius; // Only return true if all monuments are within the radius
+        }
+
+        return true; // If no radius is specified, rely only on directional check
     });
 }
+
 
 function calculateCentroid(points) {
     const numPoints = points.length;

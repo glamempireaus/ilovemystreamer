@@ -1,15 +1,17 @@
 import React, { useState } from 'react';
 import { DndContext, DragEndEvent } from '@dnd-kit/core';
-import { FilterType, FilterConfig } from '../types';
+import { FilterType, FilterConfig } from '../../types';
 import DraggableFunction from './DraggableFunction';
 import FilterDropZone from './FilterDropZone';
+import { RefreshCw } from 'lucide-react';
 
 interface FilterBuilderProps {
   onApplyFilter: (filterText: string) => void;
+  onRefresh: () => void;
   isDark?: boolean;
 }
 
-export default function FilterBuilder({ onApplyFilter, isDark }: FilterBuilderProps) {
+export default function FilterBuilder({ onApplyFilter, onRefresh, isDark }: FilterBuilderProps) {
   const [filters, setFilters] = useState<FilterConfig[]>([]);
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -19,9 +21,9 @@ export default function FilterBuilder({ onApplyFilter, isDark }: FilterBuilderPr
       const type = active.data.current?.type as FilterType;
       setFilters([...filters, {
         type,
-        monuments: [],
-        direction: 'north',
-        ...(type === 'cluster' ? { radius: 1000 } : {})
+        monuments: type === 'relational' ? [[], []] : [],
+        direction: '',
+        ...(type === 'cluster' || type === 'relational' ? { radius: 0 } : {})
       }]);
     }
   };
@@ -38,12 +40,13 @@ export default function FilterBuilder({ onApplyFilter, isDark }: FilterBuilderPr
 
   const isFilterValid = (filter: FilterConfig): boolean => {
     if (filter.type === 'relational') {
-      return filter.monuments.length === 2 && 
-             filter.monuments[0] !== '' && 
-             filter.monuments[1] !== '';
+      const [leftMonuments, rightMonuments] = filter.monuments as [string[], string[]];
+      return leftMonuments.length > 0 && rightMonuments.length > 0 && !!filter.direction;
     }
-    return filter.monuments.length > 0 && 
-           filter.monuments.every(monument => monument !== '');
+    if (filter.type === 'absolute') {
+      return (filter.monuments as string[]).length > 0 && !!filter.direction;
+    }
+    return (filter.monuments as string[]).length > 0;
   };
 
   const areAllFiltersValid = (): boolean => {
@@ -53,11 +56,19 @@ export default function FilterBuilder({ onApplyFilter, isDark }: FilterBuilderPr
   const buildFilterString = () => {
     return filters.map(filter => {
       if (filter.type === 'cluster') {
-        return `cluster(${filter.monuments.join(', ')}, ${filter.direction}, ${filter.radius})`;
+        const parts = [(filter.monuments as string[]).join(', ')];
+        if (filter.direction) {
+          parts.push(filter.direction);
+        }
+        if (filter.radius && filter.radius !== 1000) {
+          parts.push(filter.radius.toString());
+        }
+        return `cluster(${parts.join(', ')})`;
       } else if (filter.type === 'absolute') {
-        return `absolute(${filter.monuments.join(', ')}, ${filter.direction})`;
+        return `absolute(${(filter.monuments as string[]).join(', ')}, ${filter.direction})`;
       } else {
-        return `relational(${filter.monuments[0]}, ${filter.direction}, ${filter.monuments[1]})`;
+        const [leftMonuments, rightMonuments] = filter.monuments as [string[], string[]];
+        return `relational(${leftMonuments.join(', ')}, ${filter.direction}, ${rightMonuments.join(', ')}, ${filter.radius || 1000})`;
       }
     }).join(', ');
   };
@@ -65,10 +76,23 @@ export default function FilterBuilder({ onApplyFilter, isDark }: FilterBuilderPr
   return (
     <div className="space-y-6">
       <DndContext onDragEnd={handleDragEnd}>
-        <div className="flex gap-4 mb-6">
-          <DraggableFunction id="cluster" type="cluster" isDark={isDark} />
-          <DraggableFunction id="absolute" type="absolute" isDark={isDark} />
-          <DraggableFunction id="relational" type="relational" isDark={isDark} />
+        <div className="flex justify-between items-center mb-6">
+          <div className="flex gap-4">
+            <DraggableFunction id="cluster" type="cluster" isDark={isDark} />
+            <DraggableFunction id="absolute" type="absolute" isDark={isDark} />
+            <DraggableFunction id="relational" type="relational" isDark={isDark} />
+          </div>
+          <button
+            onClick={onRefresh}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+              isDark 
+                ? 'bg-gray-800 hover:bg-gray-700 text-gray-300' 
+                : 'bg-white hover:bg-gray-100 text-gray-700'
+            }`}
+          >
+            <RefreshCw size={16} />
+            Refresh Servers
+          </button>
         </div>
 
         <FilterDropZone

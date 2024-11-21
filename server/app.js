@@ -1,6 +1,8 @@
 import express from 'express';
 import cors from 'cors';
-import { refreshServers, getFilteredServers } from './core/core.js';
+import { refreshServers } from './core/core.js';
+import { fetchServersFromBattlemetricsAndRustMaps } from './core/web.js';
+
 import apiRoutes from './api.js';
 
 const app = express();
@@ -24,6 +26,7 @@ async function startServer() {
     }, 7200000);
 
     //await refreshServers();
+    //await fetchServersFromBattlemetricsAndRustMaps();
     //await getFilteredServers('cluster(airfield, outpost, water treatment, east, 800), relational(small oil, south, airfield)');
 }
 
